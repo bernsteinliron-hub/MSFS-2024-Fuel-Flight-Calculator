@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSFS 2024 Fuel & Flight Calculator (Interactive Wind Rose)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        h145: {
+                            bg: '#0a0f14',
+                            card: '#121921',
+                            border: '#1f2937',
+                            accent: '#00e5ff',
+                            green: '#00ff66',
+                            amber: '#ffb300',
+                            red: '#ff3366',
+                            magenta: '#ff00ff'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            user-select: none;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0, 229, 255, 0.3);
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 229, 255, 0.6);
+        }
+        .wind-handle {
+            cursor: grab;
+        }
+        .wind-handle:active {
+            cursor: grabbing;
+        }
+
+        /* Print / PDF Specific Styling */
+        @media print {
+            header, #themeToggleBtn, #resetBtn, #copyBtn, #pdfBtn, .barb-btn, #aircraftSearch, #aircraftDropdown {
+                display: none !important;
+            }
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-card {
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+                background: #fff !important;
+                color: #000 !important;
+            }
+            .text-white, .text-gray-100, .text-gray-200, .text-gray-300, .text-gray-400 {
+                color: #111827 !important;
+            }
+            .bg-gray-900, .bg-[#121921], .bg-[#18222d], .bg-black {
+                background: #ffffff !important;
+            }
+            .text-cyan-400, .text-cyan-500 {
+                color: #0284c7 !important;
+            }
+            .text-amber-400, .text-amber-500 {
+                color: #d97706 !important;
+            }
+            .text-green-400, .text-green-500 {
+                color: #16a34a !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-[#0a0f14] text-gray-800 dark:text-gray-100 min-h-screen transition-colors duration-200">
+
+    <!-- Header / Navbar -->
+    <header class="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-[#121921] sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-plane-navigation text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold leading-tight tracking-tight text-gray-900 dark:text-white">MSFS 2024 Fuel & Flight Calculator</h1>
+                    <p class="text-xs text-cyan-600 dark:text-cyan-400 font-mono">H145 AVIONICS & INTERACTIVE WIND ROSE</p>
+                </div>
+            </div>
+
+            <!-- Controls (Theme Toggle & Reset) -->
+            <div class="flex items-center space-x-2">
+                <button id="resetBtn" class="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-red-500 text-xs font-semibold transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span class="hidden sm:inline">Zurücksetzen</span>
+                </button>
+                <button id="themeToggleBtn" class="p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-cyan-500 dark:hover:text-cyan-400 transition-all">
+                    <i class="fa-solid fa-moon dark:hidden"></i>
+                    <i class="fa-solid fa-sun hidden dark:block"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Top Grid: Aircraft & Flight Setup -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left Box: Aircraft Preset & Parameters (7 Cols) -->
+            <div class="lg:col-span-7 bg-white dark:bg-[#121921] rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm space-y-5 print-card">
+                <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+                    <h2 class="text-base font-bold flex items-center gap-2 text-gray-900 dark:text-cyan-400">
+                        <i class="fa-solid fa-plane"></i> 1. Flugzeug & Verbrauchswerte
+                    </h2>
+                    <span class="text-xs px-2.5 py-1 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-semibold border border-cyan-500/20" id="fuelTypeBadge">
+                        Jet A-1 (0.80 kg/L)
+                    </span>
+                </div>
+
+                <!-- Aircraft Search Dropdown -->
+                <div class="relative">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Flugzeug-Vorlage suchen</label>
+                    <div class="relative">
+                        <input type="text" id="aircraftSearch" placeholder="z.B. Airbus H145, C172, A320..." 
+                            class="auto-select w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-2.5 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-400 text-sm"></i>
+                    </div>
+
+                    <!-- Dropdown Results list -->
+                    <div id="aircraftDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white dark:bg-[#18222d] border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto custom-scrollbar">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Inputs Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                    <!-- Fuel Density Selection -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Treibstoff-Typ / Dichte</label>
+                        <select id="fuelTypeSelect" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white">
+                            <option value="jeta1" selected>Jet A-1 / Kerosin (~0.80 kg/L)</option>
+                            <option value="avgas">AVGAS 100LL (~0.72 kg/L)</option>
+                        </select>
+                    </div>
+
+                    <!-- TAS (True Airspeed / Reisefluggeschwindigkeit) -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-semibold text-gray-500 dark:text-gray-400">Eigengeschwindigkeit (TAS)</label>
+                            <span class="text-[10px] text-gray-400">True Airspeed</span>
+                        </div>
+                        <div class="relative">
+                            <input type="number" id="inputTas" value="135" min="1" class="auto-select w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white font-mono font-semibold">
+                            <span class="absolute right-3 top-2 text-xs text-gray-400 font-mono">kt</span>
+                        </div>
+                    </div>
+
+                    <!-- Consumption Input (kg/h synchronized) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Verbrauch (kg / Stunde)</label>
+                        <div class="relative">
+                            <input type="number" id="inputFuelKg" value="230" step="0.1" min="0" class="auto-select w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white font-mono font-semibold">
+                            <span class="absolute right-3 top-2 text-xs text-gray-400 font-mono">kg/h</span>
+                        </div>
+                        <span id="syncLitersText" class="text-[11px] text-cyan-600 dark:text-cyan-400 font-mono mt-1 block">≙ 287.5 L/h</span>
+                    </div>
+
+                    <!-- Consumption Input (Liter/h synchronized) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Verbrauch (Liter / Stunde)</label>
+                        <div class="relative">
+                            <input type="number" id="inputFuelLiters" value="287.5" step="0.1" min="0" class="auto-select w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white font-mono font-semibold">
+                            <span class="absolute right-3 top-2 text-xs text-gray-400 font-mono">L/h</span>
+                        </div>
+                        <span id="syncKgText" class="text-[11px] text-cyan-600 dark:text-cyan-400 font-mono mt-1 block">≙ 230.0 kg/h</span>
+                    </div>
+
+                    <!-- Distance -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Flugdistanz (Nautische Meilen)</label>
+                        <div class="relative">
+                            <input type="number" id="inputDistance" value="150" min="1" class="auto-select w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white font-mono font-semibold">
+                            <span class="absolute right-3 top-2 text-xs text-gray-400 font-mono">NM</span>
+                        </div>
+                    </div>
+
+                    <!-- Contingency / Reserve -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Reserve (Standard min. 45 min)</label>
+                        <div class="flex space-x-2">
+                            <select id="reserveType" class="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white">
+                                <option value="min">Minuten</option>
+                                <option value="percent">% Zeit</option>
+                            </select>
+                            <input type="number" id="inputReserveValue" value="45" min="0" class="auto-select w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white font-mono font-semibold">
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Right Box: Wind & H145 Visual Barb Selector (5 Cols) -->
+            <div class="lg:col-span-5 bg-white dark:bg-[#121921] rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm space-y-4 print-card">
+                <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
+                    <h2 class="text-base font-bold flex items-center gap-2 text-gray-900 dark:text-cyan-400">
+                        <i class="fa-solid fa-wind"></i> 2. Windstärkeneingabe
+                    </h2>
+                    <span class="text-xs text-gray-400">H145 Barb Selector</span>
+                </div>
+
+                <!-- Wind Direction Numeric Input -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-xs font-semibold text-gray-500 dark:text-gray-400">Windrichtung (Herkunft)</label>
+                        <span class="text-[10px] text-amber-500 font-mono no-print">Oder Pfeil auf Windrose drehen</span>
+                    </div>
+                    <div class="relative">
+                        <input type="number" id="inputWindDir" value="045" min="0" max="360" class="auto-select w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white font-mono font-bold text-amber-500">
+                        <span class="absolute right-3 top-2 text-xs text-gray-400">°</span>
+                    </div>
+                </div>
+
+                <!-- Wind Speed Numeric Input -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Windstärke (Knoten / kt)</label>
+                    <div class="relative mb-2">
+                        <input type="number" id="inputWindSpeed" value="25" min="0" max="150" class="auto-select w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 text-gray-900 dark:text-white font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                        <span class="absolute right-3 top-2 text-xs text-gray-400 font-mono">kt</span>
+                    </div>
+
+                    <!-- Barb Quick Select Buttons -->
+                    <p class="text-[11px] text-gray-400 mb-1.5 font-medium no-print">Schnellwahl Windstärken-Fähnchen (Barbs):</p>
+                    <div class="grid grid-cols-5 gap-1.5 no-print">
+                        <button type="button" onclick="setWindBarb(0)" class="barb-btn p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-cyan-500 flex flex-col items-center justify-center text-xs transition-all">
+                            <svg class="w-6 h-6 stroke-current text-gray-500 dark:text-gray-300" viewBox="0 0 40 40" fill="none">
+                                <circle cx="20" cy="20" r="6" stroke-width="2"/>
+                            </svg>
+                            <span class="text-[10px] font-mono mt-0.5">0 kt</span>
+                        </button>
+
+                        <button type="button" onclick="setWindBarb(5)" class="barb-btn p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-cyan-500 flex flex-col items-center justify-center text-xs transition-all">
+                            <svg class="w-6 h-6 stroke-current text-cyan-500" viewBox="0 0 40 40">
+                                <line x1="20" y1="35" x2="20" y2="5" stroke-width="2.5"/>
+                                <line x1="20" y1="10" x2="28" y2="10" stroke-width="2.5"/>
+                            </svg>
+                            <span class="text-[10px] font-mono mt-0.5">5 kt</span>
+                        </button>
+
+                        <button type="button" onclick="setWindBarb(10)" class="barb-btn p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-cyan-500 flex flex-col items-center justify-center text-xs transition-all">
+                            <svg class="w-6 h-6 stroke-current text-cyan-500" viewBox="0 0 40 40">
+                                <line x1="20" y1="35" x2="20" y2="5" stroke-width="2.5"/>
+                                <line x1="20" y1="5" x2="33" y2="5" stroke-width="2.5"/>
+                            </svg>
+                            <span class="text-[10px] font-mono mt-0.5">10 kt</span>
+                        </button>
+
+                        <button type="button" onclick="setWindBarb(20)" class="barb-btn p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-cyan-500 flex flex-col items-center justify-center text-xs transition-all">
+                            <svg class="w-6 h-6 stroke-current text-cyan-500" viewBox="0 0 40 40">
+                                <line x1="20" y1="35" x2="20" y2="5" stroke-width="2.5"/>
+                                <line x1="20" y1="5" x2="33" y2="5" stroke-width="2.5"/>
+                                <line x1="20" y1="11" x2="33" y2="11" stroke-width="2.5"/>
+                            </svg>
+                            <span class="text-[10px] font-mono mt-0.5">20 kt</span>
+                        </button>
+
+                        <button type="button" onclick="setWindBarb(50)" class="barb-btn p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-cyan-500 flex flex-col items-center justify-center text-xs transition-all">
+                            <svg class="w-6 h-6 fill-current stroke-current text-cyan-500" viewBox="0 0 40 40">
+                                <line x1="20" y1="35" x2="20" y2="5" stroke-width="2.5"/>
+                                <polygon points="20,5 34,5 20,13" />
+                            </svg>
+                            <span class="text-[10px] font-mono mt-0.5">50 kt</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Section: Visual HPG H145 Interactive Navigation Display -->
+        <div class="bg-white dark:bg-[#121921] rounded-2xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm print-card">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3 mb-4 gap-2">
+                <div>
+                    <h2 class="text-base font-bold text-gray-900 dark:text-cyan-400 flex items-center gap-2">
+                        <i class="fa-solid fa-compass"></i> Interaktive H145 Windrose (Nord-Ausrichtung 000°)
+                    </h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 no-print">Klicken oder ziehen Sie den gelben Windpfeil direkt auf dem Kompass</p>
+                </div>
+                <div class="flex items-center space-x-3 font-mono text-xs">
+                    <span class="bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-lg border border-gray-200 dark:border-gray-700">
+                        NORD-KURS: <strong class="text-cyan-500">000°</strong>
+                    </span>
+                    <span class="bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-lg border border-gray-200 dark:border-gray-700">
+                        WIND: <strong class="text-amber-500" id="dispWind">045° / 25kt</strong>
+                    </span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                <!-- SVG Interactive Compass Display -->
+                <div class="md:col-span-6 flex justify-center py-2 relative">
+                    <div class="relative w-72 h-72 sm:w-80 sm:h-80 select-none">
+                        <svg id="ndDisplay" class="w-full h-full drop-shadow-xl overflow-visible" viewBox="0 0 300 300">
+                            <!-- Outer Compass Ring -->
+                            <circle cx="150" cy="150" r="135" class="stroke-gray-300 dark:stroke-gray-700" stroke-width="2" fill="none"/>
+                            <circle cx="150" cy="150" r="100" class="stroke-gray-200 dark:stroke-gray-800" stroke-dasharray="3,3" stroke-width="1.5" fill="none"/>
+
+                            <!-- Compass Ticks & Labels -->
+                            <g class="text-[11px] font-mono font-bold fill-gray-400">
+                                <text x="150" y="24" text-anchor="middle" class="fill-red-500 font-extrabold text-xs">N (000°)</text>
+                                <text x="282" y="154" text-anchor="middle" class="fill-gray-400">E (090°)</text>
+                                <text x="150" y="290" text-anchor="middle" class="fill-gray-400">S (180°)</text>
+                                <text x="18" y="154" text-anchor="middle" class="fill-gray-400">W (270°)</text>
+                            </g>
+
+                            <!-- Fixed Aircraft Vector Line facing NORTH -->
+                            <g id="headingGroup">
+                                <line x1="150" y1="150" x2="150" y2="30" stroke="#00e5ff" stroke-width="2.5" stroke-dasharray="4,2"/>
+                                <!-- Dynamic Aircraft / Helicopter Icon -->
+                                <g id="centerCraftIcon" transform="translate(150, 150)">
+                                    <!-- Dynamic SVG Content via JS -->
+                                </g>
+                            </g>
+
+                            <!-- Drag Touch Overlay Zone -->
+                            <circle cx="150" cy="150" r="140" fill="transparent" class="wind-handle" id="windDragZone"/>
+
+                            <!-- Draggable Wind Vector Arrow with Barb -->
+                            <g id="windBarbVector" class="wind-handle">
+                                <line id="windStem" x1="150" y1="25" x2="150" y2="120" stroke="#ffb300" stroke-width="3.5" stroke-linecap="round"/>
+                                <polygon id="windArrowHead" points="142,112 150,126 158,112" fill="#ffb300"/>
+                                
+                                <circle cx="150" cy="25" r="7" fill="none" stroke="#ffb300" stroke-width="2.5" stroke-dasharray="2,2"/>
+                                
+                                <g id="barbLines" stroke="#ffb300" stroke-width="2.5" fill="#ffb300">
+                                    <!-- Dynamic Barbs injected via JS -->
+                                </g>
+                            </g>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Navigation Component Breakdown (Cards) -->
+                <div class="md:col-span-6 space-y-3">
+                    <div class="bg-gray-50 dark:bg-[#18222d] p-4 rounded-xl border border-gray-200 dark:border-gray-800 flex justify-between items-center print-card">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-500">
+                                <i class="fa-solid fa-gauge-high text-lg"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Groundspeed (GS)</p>
+                                <p class="text-xs text-gray-400">TAS ± Windkomponente</p>
+                            </div>
+                        </div>
+                        <span class="text-2xl font-mono font-bold text-gray-900 dark:text-cyan-400" id="resGS">117 kt</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-gray-50 dark:bg-[#18222d] p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 print-card">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Wind-Komponente</p>
+                            <span class="text-base font-mono font-bold" id="resHeadwind">-18 kt (Gegenwind)</span>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-[#18222d] p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 print-card">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Seitenwind (Crosswind)</p>
+                            <span class="text-base font-mono font-bold text-gray-900 dark:text-amber-400" id="resCrosswind">18 kt Rechts</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 dark:bg-[#18222d] p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 print-card">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">Empfohlener Vorhaltewinkel (WCA):</span>
+                            <span class="text-sm font-mono font-bold text-cyan-500" id="resWCA">+8° (Steuerkurs 008°)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Output / Results Section -->
+        <div class="bg-gradient-to-br from-gray-900 to-black text-white rounded-2xl p-6 shadow-xl border border-gray-800 relative overflow-hidden print-card">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-800 pb-4 mb-6 gap-3">
+                <div>
+                    <span class="text-xs text-cyan-400 font-mono tracking-widest uppercase">Ergebnis-Berechnung</span>
+                    <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-calculator text-cyan-400"></i> Flugzeit & Treibstoffbedarf
+                    </h3>
+                </div>
+                
+                <!-- Action Buttons: Copy & Export PDF -->
+                <div class="flex items-center space-x-2 no-print">
+                    <button id="copyBtn" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 active:scale-95">
+                        <i class="fa-solid fa-copy"></i> Kopieren
+                    </button>
+                    <button id="pdfBtn" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-amber-500/20 active:scale-95">
+                        <i class="fa-solid fa-file-pdf"></i> Als PDF speichern
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                <!-- Flugzeit Card -->
+                <div class="bg-gray-900/80 p-4 rounded-xl border border-gray-800/80 space-y-2 print-card">
+                    <p class="text-xs text-gray-400 uppercase font-medium">Reine Flugzeit (Enroute)</p>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-3xl font-mono font-extrabold text-cyan-400" id="outFlightTime">01h 17m</span>
+                    </div>
+                    <p class="text-xs text-gray-500 font-mono" id="outFlightMinutes">(77 Min bei GS 117kt)</p>
+                </div>
+
+                <!-- Benötigter Treibstoff -->
+                <div class="bg-gray-900/80 p-4 rounded-xl border border-gray-800/80 space-y-2 print-card">
+                    <p class="text-xs text-gray-400 uppercase font-medium">Trip Fuel (Ohne Reserve)</p>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-3xl font-mono font-extrabold text-amber-400" id="outTripFuelKg">295 kg</span>
+                    </div>
+                    <p class="text-xs text-cyan-400 font-mono" id="outTripFuelLiters">≙ 368.8 Liter</p>
+                </div>
+
+                <!-- Gesamttreibstoff Block -->
+                <div class="bg-cyan-950/40 p-4 rounded-xl border border-cyan-500/30 space-y-2 print-card">
+                    <p class="text-xs text-cyan-300 uppercase font-medium">Block Fuel (inkl. 45m Reserve)</p>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-3xl font-mono font-extrabold text-green-400" id="outTotalFuelKg">467 kg</span>
+                    </div>
+                    <p class="text-xs text-green-400/80 font-mono" id="outTotalFuelLiters">≙ 584.4 Liter</p>
+                </div>
+
+            </div>
+
+            <!-- Detailed Breakdown List -->
+            <div class="mt-6 pt-4 border-t border-gray-800 text-xs text-gray-400 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 font-mono">
+                <div>
+                    <span class="block text-gray-500">RESERVE-TREIBSTOFF:</span>
+                    <strong class="text-gray-200" id="outReserveFuel">173 kg (215.6 L)</strong>
+                </div>
+                <div>
+                    <span class="block text-gray-500">GESAMTAUTONOMIE:</span>
+                    <strong class="text-gray-200" id="outEndurance">02h 02m</strong>
+                </div>
+                <div>
+                    <span class="block text-gray-500">WIND CORRECTION:</span>
+                    <strong class="text-gray-200" id="outWcaSummary">Gegenwind 18kt | WCA +8°</strong>
+                </div>
+                <div>
+                    <span class="block text-gray-500">STATUS:</span>
+                    <strong class="text-green-400">Berechnung Erfolgreich</strong>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-cyan-500 text-black px-4 py-3 rounded-xl shadow-2xl font-bold text-xs flex items-center space-x-2 opacity-0 pointer-events-none transition-all duration-300 z-50">
+        <i class="fa-solid fa-circle-check text-base"></i>
+        <span id="toastMsg">In Zwischenablage kopiert!</span>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Preset Aircraft Database
+        const AIRCRAFT_PRESETS = [
+            { name: "Airbus H145 (HPG Helicopter)", tas: 135, fuelKg: 230, fuelType: "jeta1", type: "heli" },
+            { name: "Bell 407 Helicopter", tas: 125, fuelKg: 180, fuelType: "jeta1", type: "heli" },
+            { name: "Guimbal Cabri G2", tas: 90, fuelKg: 28, fuelType: "avgas", type: "heli" },
+            { name: "Cessna 172 Skyhawk", tas: 110, fuelKg: 26, fuelType: "avgas", type: "plane" },
+            { name: "Cessna 208B Grand Caravan", tas: 175, fuelKg: 130, fuelType: "jeta1", type: "plane" },
+            { name: "Airbus A320neo", tas: 450, fuelKg: 2200, fuelType: "jeta1", type: "plane" },
+            { name: "Boeing 737-800 / PMDG", tas: 455, fuelKg: 2400, fuelType: "jeta1", type: "plane" },
+            { name: "Cirrus SR22", tas: 170, fuelKg: 42, fuelType: "avgas", type: "plane" },
+            { name: "Beechcraft King Air 350i", tas: 280, fuelKg: 360, fuelType: "jeta1", type: "plane" },
+            { name: "TBM 930 / TBM 960", tas: 320, fuelKg: 190, fuelType: "jeta1", type: "plane" }
+        ];
+
+        // Fuel Densities (kg per Liter)
+        const DENSITIES = {
+            jeta1: 0.80,
+            avgas: 0.72
+        };
+
+        // UI Inputs
+        const searchInput = document.getElementById('aircraftSearch');
+        const dropdown = document.getElementById('aircraftDropdown');
+        const fuelTypeSelect = document.getElementById('fuelTypeSelect');
+        const inputTas = document.getElementById('inputTas');
+        const inputFuelKg = document.getElementById('inputFuelKg');
+        const inputFuelLiters = document.getElementById('inputFuelLiters');
+        const inputDistance = document.getElementById('inputDistance');
+        const reserveType = document.getElementById('reserveType');
+        const inputReserveValue = document.getElementById('inputReserveValue');
+
+        // Wind Inputs
+        const inputWindDir = document.getElementById('inputWindDir');
+        const inputWindSpeed = document.getElementById('inputWindSpeed');
+
+        // Text Displays
+        const syncLitersText = document.getElementById('syncLitersText');
+        const syncKgText = document.getElementById('syncKgText');
+        const fuelTypeBadge = document.getElementById('fuelTypeBadge');
+        const centerCraftIcon = document.getElementById('centerCraftIcon');
+
+        let currentCraftType = "heli"; // 'heli' or 'plane'
+
+        // Render Dynamic Aircraft / Helicopter SVG Icon
+        function updateCraftIcon(type) {
+            currentCraftType = type;
+            if (type === "heli") {
+                centerCraftIcon.innerHTML = `
+                    <g filter="drop-shadow(0px 0px 4px rgba(0,229,255,0.6))">
+                        <line x1="-22" y1="-8" x2="22" y2="-8" stroke="#00e5ff" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="0" cy="-8" r="2.5" fill="#00e5ff"/>
+                        <path d="M 0 -18 C -5 -16 -6 -6 -6 2 C -5 8 -2 14 0 20 C 2 14 5 8 6 2 C 6 -6 5 -16 0 -18 Z" fill="#00e5ff"/>
+                        <line x1="-7" y1="-10" x2="-7" y2="8" stroke="#0088cc" stroke-width="1.5"/>
+                        <line x1="7" y1="-10" x2="7" y2="8" stroke="#0088cc" stroke-width="1.5"/>
+                        <line x1="-9" y1="-4" x2="-5" y2="-4" stroke="#0088cc" stroke-width="1.5"/>
+                        <line x1="9" y1="-4" x2="5" y2="-4" stroke="#0088cc" stroke-width="1.5"/>
+                        <line x1="0" y1="20" x2="0" y2="30" stroke="#00e5ff" stroke-width="2"/>
+                        <line x1="0" y1="29" x2="5" y2="29" stroke="#00e5ff" stroke-width="1.5"/>
+                        <line x1="-6" y1="25" x2="6" y2="25" stroke="#00e5ff" stroke-width="1.5"/>
+                    </g>
+                `;
+            } else {
+                centerCraftIcon.innerHTML = `
+                    <g filter="drop-shadow(0px 0px 4px rgba(0,229,255,0.6))">
+                        <path d="M 0 -18 L 4 -7 L 18 2 L 18 5 L 4 2 L 3 14 L 8 18 L 8 20 L 0 18 L -8 20 L -8 18 L -3 14 L -4 2 L -18 5 L -18 2 L -4 -7 Z" 
+                              fill="#00e5ff" stroke="#0088cc" stroke-width="1.5"/>
+                    </g>
+                `;
+            }
+        }
+
+        // Auto Select Highlight on Focus
+        document.querySelectorAll('.auto-select').forEach(input => {
+            input.addEventListener('focus', function() {
+                this.select();
+            });
+        });
+
+        // Dark Theme Toggle
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        themeToggleBtn.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+        });
+
+        // Reset Settings Button
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            searchInput.value = "Airbus H145 (HPG Helicopter)";
+            inputTas.value = 135;
+            fuelTypeSelect.value = "jeta1";
+            inputFuelKg.value = 230;
+            inputDistance.value = 150;
+            inputReserveValue.value = 45;
+            inputWindDir.value = 45;
+            inputWindSpeed.value = 25;
+            updateCraftIcon("heli");
+            updateFuelFromKg();
+            calculateAll();
+        });
+
+        // Aircraft Search Dropdown Logic
+        function renderDropdown(filter = "") {
+            const matches = AIRCRAFT_PRESETS.filter(ac => 
+                ac.name.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            if (matches.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-xs text-gray-400">Kein Flugzeug gefunden</div>`;
+            } else {
+                dropdown.innerHTML = matches.map(ac => `
+                    <div class="px-4 py-2.5 hover:bg-cyan-500/10 hover:text-cyan-500 cursor-pointer text-xs font-semibold flex justify-between items-center transition-colors border-b border-gray-100 dark:border-gray-800/50 last:border-0"
+                         onclick="selectAircraft('${ac.name}')">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid ${ac.type === 'heli' ? 'fa-helicopter' : 'fa-plane'} text-cyan-500 text-xs"></i>
+                            ${ac.name}
+                        </span>
+                        <span class="font-mono text-[10px] text-gray-400">${ac.tas} kt | ${ac.fuelKg} kg/h</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        searchInput.addEventListener('focus', () => {
+            searchInput.select();
+            renderDropdown(searchInput.value);
+            dropdown.classList.remove('hidden');
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            renderDropdown(e.target.value);
+            dropdown.classList.remove('hidden');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        window.selectAircraft = function(name) {
+            const ac = AIRCRAFT_PRESETS.find(a => a.name === name);
+            if (!ac) return;
+
+            searchInput.value = ac.name;
+            inputTas.value = ac.tas;
+            fuelTypeSelect.value = ac.fuelType;
+            inputFuelKg.value = ac.fuelKg;
+            
+            updateCraftIcon(ac.type || (ac.name.toLowerCase().includes('h145') || ac.name.toLowerCase().includes('heli') ? 'heli' : 'plane'));
+            updateFuelFromKg();
+            dropdown.classList.add('hidden');
+            calculateAll();
+        };
+
+        // Synchronize Fuel Unit Inputs (kg <-> Liter)
+        function getDensity() {
+            return DENSITIES[fuelTypeSelect.value] || 0.80;
+        }
+
+        function updateFuelFromKg() {
+            const density = getDensity();
+            const kg = parseFloat(inputFuelKg.value) || 0;
+            const liters = kg / density;
+            inputFuelLiters.value = liters.toFixed(1);
+            syncLitersText.textContent = `≙ ${liters.toFixed(1)} L/h`;
+            syncKgText.textContent = `≙ ${kg.toFixed(1)} kg/h`;
+        }
+
+        function updateFuelFromLiters() {
+            const density = getDensity();
+            const liters = parseFloat(inputFuelLiters.value) || 0;
+            const kg = liters * density;
+            inputFuelKg.value = kg.toFixed(1);
+            syncLitersText.textContent = `≙ ${liters.toFixed(1)} L/h`;
+            syncKgText.textContent = `≙ ${kg.toFixed(1)} kg/h`;
+        }
+
+        inputFuelKg.addEventListener('input', () => {
+            updateFuelFromKg();
+            calculateAll();
+        });
+
+        inputFuelLiters.addEventListener('input', () => {
+            updateFuelFromLiters();
+            calculateAll();
+        });
+
+        fuelTypeSelect.addEventListener('change', () => {
+            const isJet = fuelTypeSelect.value === 'jeta1';
+            fuelTypeBadge.textContent = isJet ? 'Jet A-1 (0.80 kg/L)' : 'AVGAS 100LL (0.72 kg/L)';
+            updateFuelFromKg();
+            calculateAll();
+        });
+
+        // Set Wind Barb directly
+        window.setWindBarb = function(speed) {
+            inputWindSpeed.value = speed;
+            calculateAll();
+        };
+
+        // Listeners for inputs
+        [inputTas, inputDistance, reserveType, inputReserveValue, inputWindDir, inputWindSpeed].forEach(el => {
+            el.addEventListener('input', calculateAll);
+            el.addEventListener('change', calculateAll);
+        });
+
+        // Interactive Wind Vector Dragging
+        const svgND = document.getElementById('ndDisplay');
+        let isDraggingWind = false;
+
+        function updateWindFromMouse(e) {
+            const rect = svgND.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const dx = clientX - centerX;
+            const dy = clientY - centerY;
+
+            let angleRad = Math.atan2(dx, -dy);
+            let angleDeg = Math.round(angleRad * (180 / Math.PI));
+            if (angleDeg < 0) angleDeg += 360;
+
+            inputWindDir.value = String(angleDeg).padStart(3, '0');
+            calculateAll();
+        }
+
+        svgND.addEventListener('mousedown', (e) => {
+            isDraggingWind = true;
+            updateWindFromMouse(e);
+        });
+
+        svgND.addEventListener('touchstart', (e) => {
+            isDraggingWind = true;
+            updateWindFromMouse(e);
+        }, { passive: true });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDraggingWind) updateWindFromMouse(e);
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (isDraggingWind) updateWindFromMouse(e);
+        }, { passive: true });
+
+        window.addEventListener('mouseup', () => { isDraggingWind = false; });
+        window.addEventListener('touchend', () => { isDraggingWind = false; });
+
+        function updateNavigationDisplay(windDir, windSpeed, headwind, crosswind, wca) {
+            document.getElementById('dispWind').textContent = `${String(Math.round(windDir)).padStart(3, '0')}° / ${Math.round(windSpeed)}kt`;
+
+            const headwindEl = document.getElementById('resHeadwind');
+            if (headwind >= 0) {
+                headwindEl.textContent = `+${Math.round(headwind)} kt (Rückenwind)`;
+                headwindEl.className = "text-base font-mono font-bold text-green-500";
+            } else {
+                headwindEl.textContent = `${Math.round(headwind)} kt (Gegenwind)`;
+                headwindEl.className = "text-base font-mono font-bold text-red-400";
+            }
+
+            const crosswindEl = document.getElementById('resCrosswind');
+            const side = crosswind >= 0 ? 'Rechts' : 'Links';
+            crosswindEl.textContent = `${Math.abs(Math.round(crosswind))} kt ${side}`;
+
+            const wcaEl = document.getElementById('resWCA');
+            const correctedHeading = (wca + 360) % 360;
+            wcaEl.textContent = `${wca >= 0 ? '+' : ''}${Math.round(wca)}° (Steuerkurs ${String(Math.round(correctedHeading)).padStart(3, '0')}°)`;
+
+            const windBarbVector = document.getElementById('windBarbVector');
+            windBarbVector.setAttribute('transform', `rotate(${windDir}, 150, 150)`);
+
+            const barbLinesGroup = document.getElementById('barbLines');
+            barbLinesGroup.innerHTML = '';
+
+            if (windSpeed < 2.5) {
+                barbLinesGroup.innerHTML = '<circle cx="150" cy="25" r="5" fill="none" stroke="#ffb300" stroke-width="2"/>';
+            } else {
+                let speed = Math.round(windSpeed);
+                let currentY = 25;
+
+                while (speed >= 47.5) {
+                    const flag = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    flag.setAttribute("points", `150,${currentY} 166,${currentY} 150,${currentY + 8}`);
+                    barbLinesGroup.appendChild(flag);
+                    currentY += 10;
+                    speed -= 50;
+                }
+
+                while (speed >= 7.5) {
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", "150");
+                    line.setAttribute("y1", currentY);
+                    line.setAttribute("x2", "165");
+                    line.setAttribute("y2", currentY - 4);
+                    barbLinesGroup.appendChild(line);
+                    currentY += 6;
+                    speed -= 10;
+                }
+
+                if (speed >= 2.5) {
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", "150");
+                    line.setAttribute("y1", currentY);
+                    line.setAttribute("x2", "158");
+                    line.setAttribute("y2", currentY - 2);
+                    barbLinesGroup.appendChild(line);
+                }
+            }
+        }
+
+        function calculateAll() {
+            const tas = parseFloat(inputTas.value) || 100;
+            const distance = parseFloat(inputDistance.value) || 0;
+            const fuelKgPerHour = parseFloat(inputFuelKg.value) || 0;
+            const density = getDensity();
+
+            const windDir = (parseFloat(inputWindDir.value) || 0) % 360;
+            const windSpeed = parseFloat(inputWindSpeed.value) || 0;
+
+            const windRad = windDir * (Math.PI / 180);
+
+            const crosswind = windSpeed * Math.sin(windRad);
+            const headwindComponent = -windSpeed * Math.cos(windRad);
+
+            let wcaRad = 0;
+            if (tas > 0 && Math.abs(crosswind) <= tas) {
+                wcaRad = Math.asin(crosswind / tas);
+            }
+            const wcaDeg = wcaRad * (180 / Math.PI);
+
+            const gs = Math.max(10, (tas * Math.cos(wcaRad)) + headwindComponent);
+
+            updateNavigationDisplay(windDir, windSpeed, headwindComponent, crosswind, wcaDeg);
+            document.getElementById('resGS').textContent = `${Math.round(gs)} kt`;
+
+            const flightTimeHours = distance / gs;
+            const flightTimeMinutes = flightTimeHours * 60;
+
+            let reserveMinutes = 45;
+            if (reserveType.value === 'min') {
+                reserveMinutes = parseFloat(inputReserveValue.value) || 0;
+            } else {
+                const pct = parseFloat(inputReserveValue.value) || 0;
+                reserveMinutes = flightTimeMinutes * (pct / 100);
+            }
+            const reserveHours = reserveMinutes / 60;
+
+            const tripFuelKg = flightTimeHours * fuelKgPerHour;
+            const tripFuelLiters = tripFuelKg / density;
+
+            const reserveFuelKg = reserveHours * fuelKgPerHour;
+            const reserveFuelLiters = reserveFuelKg / density;
+
+            const totalFuelKg = tripFuelKg + reserveFuelKg;
+            const totalFuelLiters = totalFuelKg / density;
+
+            const totalEnduranceHours = totalFuelKg / fuelKgPerHour;
+
+            const hoursInt = Math.floor(flightTimeMinutes / 60);
+            const minsInt = Math.round(flightTimeMinutes % 60);
+            document.getElementById('outFlightTime').textContent = `${String(hoursInt).padStart(2, '0')}h ${String(minsInt).padStart(2, '0')}m`;
+            document.getElementById('outFlightMinutes').textContent = `(${Math.round(flightTimeMinutes)} Min bei GS ${Math.round(gs)}kt)`;
+
+            document.getElementById('outTripFuelKg').textContent = `${Math.round(tripFuelKg)} kg`;
+            document.getElementById('outTripFuelLiters').textContent = `≙ ${tripFuelLiters.toFixed(1)} Liter`;
+
+            document.getElementById('outTotalFuelKg').textContent = `${Math.round(totalFuelKg)} kg`;
+            document.getElementById('outTotalFuelLiters').textContent = `≙ ${totalFuelLiters.toFixed(1)} Liter`;
+
+            document.getElementById('outReserveFuel').textContent = `${Math.round(reserveFuelKg)} kg (${reserveFuelLiters.toFixed(1)} L)`;
+
+            const endHoursInt = Math.floor(totalEnduranceHours);
+            const endMinsInt = Math.round((totalEnduranceHours - endHoursInt) * 60);
+            document.getElementById('outEndurance').textContent = `${String(endHoursInt).padStart(2, '0')}h ${String(endMinsInt).padStart(2, '0')}m`;
+
+            const hwType = headwindComponent >= 0 ? "Tailwind" : "Headwind";
+            document.getElementById('outWcaSummary').textContent = `${hwType} ${Math.abs(Math.round(headwindComponent))}kt | WCA ${wcaDeg >= 0 ? '+' : ''}${Math.round(wcaDeg)}°`;
+        }
+
+        // Clipboard Copy
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const aircraft = searchInput.value || "Flugzeug";
+            const dist = inputDistance.value;
+            const tas = inputTas.value;
+            const gs = document.getElementById('resGS').textContent;
+            const time = document.getElementById('outFlightTime').textContent;
+            const tripKg = document.getElementById('outTripFuelKg').textContent;
+            const tripL = document.getElementById('outTripFuelLiters').textContent;
+            const totalKg = document.getElementById('outTotalFuelKg').textContent;
+            const totalL = document.getElementById('outTotalFuelLiters').textContent;
+            const wind = document.getElementById('dispWind').textContent;
+
+            const summaryText = `=== MSFS 2024 FLIGHT & FUEL LOG ===
+Typ: ${currentCraftType === 'heli' ? 'Helikopter' : 'Flugzeug'} (${aircraft})
+Distanz: ${dist} NM | TAS: ${tas} kt | GS: ${gs}
+Wind: ${wind} (Nord-Kurs 000°)
+
+Reine Flugzeit: ${time}
+Trip Fuel: ${tripKg} (${tripL})
+Block Fuel (Gesamt): ${totalKg} (${totalL})
+===================================`;
+
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = summaryText;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+
+            showToast("In Zwischenablage kopiert!");
+        });
+
+        // PDF Export Action Trigger (native Print-to-PDF Window)
+        document.getElementById('pdfBtn').addEventListener('click', () => {
+            window.print();
+        });
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // Initialize App
+        window.onload = function() {
+            searchInput.value = "Airbus H145 (HPG Helicopter)";
+            updateCraftIcon("heli");
+            updateFuelFromKg();
+            calculateAll();
+        };
+    </script>
+</body>
+</html>
